@@ -1,0 +1,361 @@
+/* General Reset */
+* {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    text-decoration: none;
+    box-sizing: border-box;
+}
+
+/* Header Styles */
+.header {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    background: rgba(255, 255, 255, 0.1); /* Διαφανές background */
+    backdrop-filter: blur(10px); /* Προσθήκη blur effect */
+    -webkit-backdrop-filter: blur(10px); /* Για Safari */
+    border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+    z-index: 1000;
+    padding: 15px 30px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-shadow: 0 2px 15px rgba(0, 0, 0, 0.15);
+    height: 80px; /* Fixed height for header */
+    gap: 20px;
+}
+
+.header_left {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    flex: 1;
+}
+
+/* Logo Container */
+.logo_container {
+    display: flex;
+    align-items: center;
+}
+
+.logo {
+    width: 60px;
+    height: auto;
+    object-fit: contain;
+}
+
+/* Inner Header */
+.inner_header {
+    display: flex;
+    flex-wrap: wrap; /* Allow items to wrap into multiple rows */
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    gap: 15px;
+    padding: 0 10px;
+}
+
+/* Logo Container */
+.logo_container {
+    display: flex;
+    align-items: center;
+}
+
+/* Logo Image */
+.logo {
+    width: 60px; /* Adjust the size as needed */
+    height: 60px; /* Ensure equal width and height for a perfect circle */
+    object-fit: cover; /* Ensure the image scales properly inside the circle */
+    border-radius: 50%; /* Make it circular */
+    cursor: pointer; /* Make the logo interactive */
+    transition: transform 0.3s ease; /* Add a hover effect */
+}
+
+/* Hover Effect */
+.logo:hover {
+    transform: scale(1.1); /* Slightly enlarge the logo on hover */
+}
+
+/* Search Bar */
+.search {
+    margin: 0 20px;
+}
+
+.search_input {
+    width: 100%;
+    height: 100%;
+    background: transparent;
+    outline: none;
+    border: 2px solid rgba(255, 255, 255, .2);
+    border-radius: 40px;
+    font-size: 16px;
+    color: #fff;
+    padding: 10px 20px; /* Adjust padding for consistent alignment */
+    text-align: left; /* Align text to the left */
+    text-align-last: left;
+    -webkit-appearance: none; /* Removes default dropdown arrow for WebKit browsers */
+    -moz-appearance: none;    /* Removes default dropdown arrow for Firefox */
+    appearance: none; /* Αφαιρεί το προεπιλεγμένο dropdown styling */
+    cursor: pointer;
+}
+
+.search_input::placeholder {
+    color: #000; /* Black placeholder text */
+    opacity: 1; /* Ensure the placeholder is fully visible */
+}
+
+.search_form {
+    display: flex;
+    align-items: center;
+    width: 100%;
+}
+
+.search_button {
+    margin-top: 7px;
+    background: transparent;
+    color: white;
+    border: none;
+    border-radius: 50%; /* Make it circular */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+}
+
+.search_button:hover {
+    color: burlywood;
+}
+
+.search_button i {
+    font-size: 20px;
+}
+
+/* Navbar */
+.navbar {
+    flex: 5; /* Allow the navbar to take more space */
+}
+
+.navigation {
+    display: grid; /* Use a grid layout for two rows of two links */
+    grid-template-columns: repeat(2, 1fr); /* Two columns */
+    grid-gap: 3px; /* Add spacing between links */
+    justify-content: right; /* Align the links to the right */
+}
+
+.nav_button{
+    width: 130px;
+    height: 25px;
+    background: transparent;
+    border: 2px solid rgba(255, 255, 255, .2);
+    backdrop-filter: blur(30px);
+    box-shadow: 0 0 10px rgba(0, 0, 0, .2);
+    outline: none;
+    border-radius: 40px;
+    cursor: pointer;
+    font-size: 14px;
+    color: #333;
+    font-weight: 700;
+}
+
+.navigation li {
+    text-align: right;
+}
+
+.navigation li a {
+    font-size: 10px;
+    font-weight: 600;
+    color: black;
+    transition: color 0.3s ease;
+    white-space: nowrap; /* Prevent text from breaking within links */
+}
+
+.nav_button:hover {
+    background: #F8BA8EDA;
+}
+
+/* Profile section */
+.profile_container {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    justify-content: right;
+}
+
+.user-notifications {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.notification-icon {
+    margin-left: 55px;
+}
+
+.profile_icon {
+    display: flex;
+    flex-direction: column;  /* Stack icon and username vertically */
+    align-items: center;     /* Center both horizontally */
+    justify-content: center;
+}
+
+.icon {
+    margin-bottom: 5px;  /* Add space between icon and username */
+}
+
+.profile_username {
+    font-size: 12px;
+    color: #333;
+    margin-top: 3px;
+    text-align: center;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .inner_header {
+        justify-content: center; /* Center-align items on smaller screens */
+        gap: 10px;
+    }
+
+    .search {
+        flex: 1;
+        min-width: 200px;
+    }
+
+    .navigation {
+        justify-content: center; /* Center navbar links on smaller screens */
+    }
+}
+
+.dashboard-layout {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+}
+
+.dashboard-container {
+    flex: 1;
+    padding-top: 150px;
+    padding-left: 30px;
+    padding-right: 30px;
+    max-width: 1400px;
+    margin: 0 auto;
+    width: 100%;
+}
+
+/* Για τις κάρτες */
+.projects-grid,
+.applications-grid,
+.search-result-container,
+.welcome-dashboard {
+    margin-top: 20px;
+}
+
+/* Για responsive design */
+@media (max-width: 768px) {
+    .dashboard-container {
+        padding-top: 170px; /* Αυξάνουμε αντίστοιχα και το responsive padding */
+        padding-left: 15px;
+        padding-right: 15px;
+    }
+}
+
+.applications-grid h2,
+.projects-grid h2,
+.search-result-container h2 {
+    color: #000;  /* Αλλαγή χρώματος σε μαύρο για όλους τους τίτλους */
+}
+
+/* Χρώματα και styling για τα διαφορετικά status */
+.status-waiting,
+.status-approved,
+.status-rejected {
+    padding: 5px 10px;
+    border-radius: 15px;
+    font-weight: bold;
+    font-size: 0.9rem;
+}
+
+.status-waiting {
+    color: #FFA500;
+    background-color: rgba(255, 165, 0, 0.1);
+    border: 1px solid #FFA500;
+}
+
+.status-approved {
+    color: #28a745;
+    background-color: rgba(40, 167, 69, 0.1);
+    border: 1px solid #28a745;
+}
+
+.status-rejected {
+    color: #dc3545;
+    background-color: rgba(220, 53, 69, 0.1);
+    border: 1px solid #dc3545;
+}
+
+.footer {
+    margin-top: auto;
+    width: 100%;
+    padding: 20px 0;
+    background-color: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(10px);
+    border-top: 1px solid rgba(255, 255, 255, 0.2);
+    text-align: center;
+}
+
+/* Styling για τα icons στους τίτλους */
+.title-icon {
+    margin-right: 10px;
+    font-size: 1.2em;
+    vertical-align: middle;
+}
+
+.applications-grid h2,
+.projects-grid h2,
+.search-result-container h2 {
+    color: #000;
+    display: flex;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+/* Styling για τα icons στα πεδία */
+.field-icon {
+    margin-right: 5px;
+    font-size: 1em;
+    color: rgba(0, 0, 0, 0.6);
+    vertical-align: middle;
+}
+
+.meta-item .label,
+.cover-letter .label {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-weight: 600;
+}
+
+.notification-panel {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    margin-top: 10px;
+    z-index: 1000;
+}
+
+/* Navigation styles */
+.nav_container {
+    margin-left: auto; /* Push navigation to the right of logo */
+}
+
+nav ul {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    grid-template-rows: repeat(2, 1fr);
+    gap: 5px;
+    width: 200px; /* Adjust width as needed */
+}

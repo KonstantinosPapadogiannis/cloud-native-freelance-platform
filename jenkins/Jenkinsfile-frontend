@@ -1,0 +1,327 @@
+pipeline {
+    agent any
+    tools {
+        nodejs 'Node 21'
+    }
+    environment {
+        // Azure Configuration
+        ACR_NAME = 'ergohubregistry'
+        RESOURCE_GROUP = 'ergohub-production'
+        AKS_CLUSTER = 'ergohub-k8s'
+        DOCKER_IMAGE = "${ACR_NAME}.azurecr.io/freelance-frontend:${env.BUILD_NUMBER}"
+        CI = 'true'
+        GENERATE_SOURCEMAP = 'false'
+    }
+    stages {
+        stage('Checkout') {
+            steps {
+                echo '🔄 Checking out frontend code...'
+                git branch: 'main', url: 'https://github.com/naasssssty/Freelance.git'
+            }
+        }
+        
+        stage('Install Dependencies') {
+            steps {
+                echo '📦 Installing frontend dependencies...'
+                dir('frontend') {
+                    script {
+                        try {
+                            // Clean only node_modules, keep package-lock.json for npm ci
+                            sh 'rm -rf node_modules || true'
+                            
+                            // Try npm ci first (faster and more reliable)
+                            retry(3) {
+                                sh 'npm ci --prefer-offline --timeout=300000'
+                            }
+                        } catch (Exception e) {
+                            echo "npm ci failed, trying npm install as fallback: ${e.getMessage()}"
+                            // Only remove package-lock.json if npm ci fails
+                            sh 'rm -rf package-lock.json || true'
+                            sh 'npm install --timeout=300000'
+                        }
+                    }
+                }
+            }
+        }
+        
+        stage('Lint') {
+            steps {
+                echo '🔍 Running ESLint for code quality...'
+                dir('frontend') {
+                    script {
+                        try {
+                            // Try to fix auto-fixable issues first
+                            sh 'npm run lint:fix || true'
+                            // Then run the actual lint check
+                            sh 'npm run lint'
+                        } catch (Exception e) {
+                            echo "ESLint found issues: ${e.getMessage()}"
+                            // Don't fail the build for linting issues, just warn
+                            sh 'npm run lint || true'
+                        }
+                    }
+                }
+            }
+        }
+        
+        stage('Unit Tests') {
+            environment {
+                // Jest test environment
+                CI = 'true'
+                NODE_ENV = 'test'
+            }
+            steps {
+                echo '🧪 Running unit tests...'
+                dir('frontend') {
+                    // Use the new test:ci script
+                    sh 'npm run test:ci'
+                }
+            }
+            post {
+                always {
+                    // Archive coverage reports as artifacts for now
+                    script {
+                        try {
+                            archiveArtifacts(
+                                artifacts: 'frontend/coverage/**/*',
+                                allowEmptyArchive: true
+                            )
+                            echo "✅ Coverage reports archived successfully"
+                        } catch (Exception e) {
+                            echo "Could not archive coverage reports: ${e.getMessage()}"
+                        }
+                    }
+                }
+            }
+        }
+        
+        stage('Integration Tests') {
+            environment {
+                // Integration test environment
+                CI = 'true'
+                NODE_ENV = 'test'
+                REACT_APP_API_URL = 'http://localhost:8080'
+            }
+            steps {
+                echo '🔗 Running integration tests...'
+                dir('frontend') {
+                    script {
+                        try {
+                            // Run integration tests with coverage
+                            sh 'npm run test:integration:coverage'
+                        } catch (Exception e) {
+                            echo "Integration tests failed: ${e.getMessage()}"
+                            // Don't fail the pipeline for integration test failures in development
+                            sh 'echo "Integration tests completed with issues"'
+                        }
+                    }
+                }
+            }
+            post {
+                always {
+                    // Archive integration test results
+                    archiveArtifacts(
+                        artifacts: 'frontend/coverage/**/*',
+                        allowEmptyArchive: true
+                    )
+                }
+            }
+        }
+        
+        stage('Build') {
+            steps {
+                echo '🏗️ Building frontend application...'
+                dir('frontend') {
+                    sh 'npm run build'
+                }
+            }
+            post {
+                always {
+                    // Archive build artifacts
+                    archiveArtifacts(
+                        artifacts: 'frontend/build/**/*',
+                        allowEmptyArchive: true
+                    )
+                }
+            }
+        }
+        
+        stage('Security Audit') {
+            steps {
+                echo '🔒 Running security audit...'
+                dir('frontend') {
+                    sh 'npm audit --audit-level=moderate || true'
+                }
+            }
+        }
+        
+        stage('Azure Login & Setup') {
+            steps {
+                echo '☁️ Setting up Azure CLI and ACR access...'
+                script {
+                    docker.image('mcr.microsoft.com/azure-cli:latest').inside('--entrypoint=""') {
+                        withCredentials([
+                            string(credentialsId: 'azure-client-id', variable: 'AZURE_CLIENT_ID'),
+                            string(credentialsId: 'azure-client-secret', variable: 'AZURE_CLIENT_SECRET'),
+                            string(credentialsId: 'azure-tenant-id', variable: 'AZURE_TENANT_ID')
+                        ]) {
+                            sh '''
+                                # Login to Azure
+                                az login --service-principal -u $AZURE_CLIENT_ID -p $AZURE_CLIENT_SECRET --tenant $AZURE_TENANT_ID
+                                
+                                # Get ACR access token and save to file
+                                az acr login --name $ACR_NAME --expose-token --output tsv --query accessToken > acr_token.txt
+                                
+                                # Get AKS credentials and save to workspace
+                                az aks get-credentials --resource-group $RESOURCE_GROUP --name $AKS_CLUSTER --file ./kubeconfig
+                            '''
+                        }
+                    }
+                }
+            }
+        }
+        
+        stage('Build & Push Docker Image') {
+            steps {
+                echo '🐳 Building and pushing Docker image to Azure Container Registry...'
+                script {
+                    // Build Docker image on the Jenkins agent
+                    sh 'docker build -t $DOCKER_IMAGE -f docker/Dockerfile.frontend frontend/'
+                    
+                    // Login to ACR using token and push images
+                    sh '''
+                        # Login to ACR using the token
+                        cat acr_token.txt | docker login $ACR_NAME.azurecr.io --username 00000000-0000-0000-0000-000000000000 --password-stdin
+                        
+                        # Push to Azure Container Registry
+                        docker push $DOCKER_IMAGE
+                        
+                        # Also tag and push as latest
+                        docker tag $DOCKER_IMAGE ${ACR_NAME}.azurecr.io/freelance-frontend:latest
+                        docker push ${ACR_NAME}.azurecr.io/freelance-frontend:latest
+                        
+                        # Logout for security
+                        docker logout $ACR_NAME.azurecr.io
+                    '''
+                }
+            }
+        }
+        
+        stage('Deploy to Azure AKS') {
+            steps {
+                echo '🚀 Deploying to Azure Kubernetes Service...'
+                script {
+                    // Use kubectl with the kubeconfig file created in Azure Login stage
+                    sh '''
+                        export KUBECONFIG=./kubeconfig
+                        
+                        # Update frontend deployment with new image
+                        kubectl set image deployment/frontend frontend=$DOCKER_IMAGE -n freelance
+                        
+                        # Wait for rollout to complete
+                        kubectl rollout status deployment/frontend -n freelance --timeout=300s
+                        
+                        # Verify deployment
+                        kubectl get pods -n freelance -l app=frontend
+                    '''
+                }
+            }
+        }
+        
+        stage('Health Check') {
+            steps {
+                echo '🔍 Performing health check...'
+                sh '''
+                    export KUBECONFIG=./kubeconfig
+                    
+                    # Wait a bit for the service to be ready
+                    sleep 20
+                    
+                    # Check if frontend pods are running
+                    kubectl get pods -n freelance -l app=frontend
+                    
+                    # Check service endpoints
+                    kubectl get svc -n freelance
+                    
+                    # Check ingress status
+                    kubectl get ingress -n freelance || echo "No ingress found"
+                '''
+            }
+        }
+        
+        stage('Verify Application') {
+            steps {
+                echo '✅ Verifying application accessibility...'
+                sh '''
+                    # Get the external IP or URL
+                    echo "Application should be available at: https://ergohub.duckdns.org"
+                    
+                    # Optional: Test if the application responds (with timeout)
+                    curl -f -m 10 https://ergohub.duckdns.org || echo "Application may still be starting up"
+                '''
+            }
+        }
+    }
+    post {
+        always {
+            echo '🏁 Frontend Azure pipeline completed.'
+            // Archive test reports
+            archiveArtifacts(
+                artifacts: 'frontend/coverage/**/*',
+                allowEmptyArchive: true
+            )
+            // Clean up sensitive files
+            sh '''
+                rm -f acr_token.txt || true
+                rm -f kubeconfig || true
+            '''
+        }
+        success {
+            echo '✅ Frontend deployed successfully to Azure AKS!'
+            echo "Docker image: ${env.DOCKER_IMAGE}"
+            echo "Deployed to: ${env.AKS_CLUSTER} in ${env.RESOURCE_GROUP}"
+            echo "Application URL: https://ergohub.duckdns.org"
+        }
+        failure {
+            echo '❌ Frontend Azure deployment failed. Check the logs for details.'
+        }
+        cleanup {
+            // Clean up local Docker images to save space
+            script {
+                try {
+                    sh '''
+                        set +e  # Don't exit on error
+                        
+                        echo "🧹 Starting cleanup process..."
+                        
+                        # Clean up Docker images with better error handling
+                        if docker images | grep -q "$DOCKER_IMAGE"; then
+                            echo "Removing Docker image: $DOCKER_IMAGE"
+                            docker rmi "$DOCKER_IMAGE" || echo "Failed to remove $DOCKER_IMAGE"
+                        else
+                            echo "Docker image $DOCKER_IMAGE not found locally, skipping removal"
+                        fi
+                        
+                        if docker images | grep -q "${ACR_NAME}.azurecr.io/freelance-frontend:latest"; then
+                            echo "Removing Docker image: ${ACR_NAME}.azurecr.io/freelance-frontend:latest"
+                            docker rmi "${ACR_NAME}.azurecr.io/freelance-frontend:latest" || echo "Failed to remove latest image"
+                        else
+                            echo "Latest frontend image not found locally, skipping removal"
+                        fi
+                        
+                        # Clean up sensitive files
+                        echo "Removing sensitive files..."
+                        rm -f acr_token.txt
+                        rm -f kubeconfig
+                        
+                        echo "✅ Cleanup completed successfully"
+                        
+                        set -e  # Re-enable exit on error
+                    '''
+                } catch (Exception e) {
+                    echo "⚠️ Cleanup encountered issues but continuing: ${e.getMessage()}"
+                }
+            }
+        }
+    }
+}

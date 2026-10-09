@@ -1,0 +1,144 @@
+.application-card {
+    background: transparent;
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 12px;
+    padding: 20px;
+    margin: 10px;
+    transition: transform 0.2s, box-shadow 0.2s;
+    color: black;
+}
+
+.application-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+}
+
+.application-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+}
+
+.application-header h3 {
+    margin: 0;
+    font-size: 1.2rem;
+    font-weight: 600;
+}
+
+.download-cv-button {
+    margin-top: 10px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 8px;
+    background-color: transparent;
+    text-decoration: none;
+    color: #2b85c2;
+    border: 1px solid #2b85c2;
+    border-radius: 15px;
+    font-size: 1em;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+}
+
+.download-cv-button:hover {
+    background-color: #2b86c23e;
+    color: #2b85c2;
+}
+
+.status-badge {
+    padding: 6px 12px;
+    border-radius: 15px;
+    font-weight: 600;
+    font-size: 0.9rem;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.status-badge.pending {
+    color: #a76c00;
+    background-color: rgba(255, 171, 0, 0.13);
+    border: 1px solid #ffab00;
+}
+
+.status-badge.approved {
+    color: rgba(23, 99, 3, 0.99);
+    background-color: rgba(3, 214, 14, 0.13);
+    border: 1px solid rgba(23, 99, 3, 0.99);
+}
+
+.status-badge.rejected {
+    color: #a72828;
+    background-color: rgba(167, 40, 40, 0.13);
+    border: 1px solid #a72828;
+}
+
+.application-details {
+    margin: 15px 0;
+}
+
+.cover-letter {
+    margin-bottom: 20px;
+}
+
+.letter-text {
+    color: rgba(0, 0, 0, 0.9);
+    line-height: 1.6;
+    margin-top: 8px;
+    font-size: 0.95rem;
+    padding: 15px;
+    background: rgba(255, 255, 255, 0.3);
+    border-radius: 8px;
+    white-space: pre-wrap;
+}
+
+.application-meta {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 15px;
+    margin-top: 15px;
+    padding-top: 15px;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.meta-item {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.label {
+    color: rgba(0, 0, 0, 0.7);
+    font-size: 0.85rem;
+}
+
+.value {
+    font-weight: 500;
+    font-size: 0.9rem;
+}
+
+/* Responsive improvements */
+@media (max-width: 768px) {
+    .application-card {
+        margin: 10px 5px;
+        padding: 15px;
+    }
+
+    .application-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+    }
+
+    .application-meta {
+        grid-template-columns: 1fr;
+        gap: 10px;
+    }
+
+    .letter-text {
+        padding: 10px;
+    }
+} 

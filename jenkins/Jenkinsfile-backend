@@ -1,0 +1,230 @@
+pipeline {
+    agent any
+    tools {
+        maven 'Maven 3'
+        jdk 'JDK 21 Linux'
+    }
+    environment {
+        // Azure Configuration
+        ACR_NAME = 'ergohubregistry'
+        RESOURCE_GROUP = 'ergohub-production'
+        AKS_CLUSTER = 'ergohub-k8s'
+        DOCKER_IMAGE = "${ACR_NAME}.azurecr.io/freelance-backend:${env.BUILD_NUMBER}"
+        SPRING_PROFILES_ACTIVE = 'test'
+    }
+    stages {
+        stage('Compile') {
+            steps {
+                echo 'Compiling the backend application...'
+                sh 'mvn clean compile -DskipTests'
+            }
+        }
+        
+        stage('Unit Tests') {
+            environment {
+                SPRING_PROFILES_ACTIVE = 'test'
+                SPRING_DATASOURCE_URL = 'jdbc:h2:mem:testdb'
+                SPRING_DATASOURCE_USERNAME = 'sa'
+                SPRING_DATASOURCE_PASSWORD = ''
+                SPRING_DATASOURCE_DRIVER_CLASS_NAME = 'org.h2.Driver'
+                SPRING_JPA_DATABASE_PLATFORM = 'org.hibernate.dialect.H2Dialect'
+                SPRING_JPA_HIBERNATE_DDL_AUTO = 'create-drop'
+            }
+            steps {
+                echo 'Running unit tests...'
+                sh 'mvn test -Dspring.profiles.active=test'
+            }
+            post {
+                always {
+                    junit(
+                        allowEmptyResults: true,
+                        testResults: '**/target/surefire-reports/*.xml'
+                    )
+                }
+            }
+        }
+        
+        stage('Integration Tests') {
+            environment {
+                SPRING_PROFILES_ACTIVE = 'test'
+                SPRING_DATASOURCE_URL = 'jdbc:h2:mem:integrationtestdb'
+                SPRING_DATASOURCE_USERNAME = 'sa'
+                SPRING_DATASOURCE_PASSWORD = ''
+                SPRING_DATASOURCE_DRIVER_CLASS_NAME = 'org.h2.Driver'
+                SPRING_JPA_DATABASE_PLATFORM = 'org.hibernate.dialect.H2Dialect'
+                SPRING_JPA_HIBERNATE_DDL_AUTO = 'create-drop'
+            }
+            steps {
+                echo 'Running integration tests...'
+                sh 'mvn test-compile'
+                sh 'mvn surefire:test -Dtest=TestFreelancerProjectApplicationTests -Dspring.profiles.active=test'
+            }
+            post {
+                always {
+                    archiveArtifacts(
+                        artifacts: '**/target/surefire-reports/TEST-*TestFreelancerProjectApplicationTests.xml',
+                        allowEmptyArchive: true
+                    )
+                }
+            }
+        }
+        
+        stage('Package') {
+            steps {
+                echo 'Packaging the application...'
+                sh 'mvn package -DskipTests'
+            }
+        }
+        
+        stage('Azure Login & Setup') {
+            steps {
+                echo 'Setting up Azure CLI and ACR access...'
+                script {
+                    docker.image('mcr.microsoft.com/azure-cli:latest').inside('--entrypoint=""') {
+                        withCredentials([
+                            string(credentialsId: 'azure-client-id', variable: 'AZURE_CLIENT_ID'),
+                            string(credentialsId: 'azure-client-secret', variable: 'AZURE_CLIENT_SECRET'),
+                            string(credentialsId: 'azure-tenant-id', variable: 'AZURE_TENANT_ID')
+                        ]) {
+                            sh '''
+                                # Login to Azure
+                                az login --service-principal -u $AZURE_CLIENT_ID -p $AZURE_CLIENT_SECRET --tenant $AZURE_TENANT_ID
+                                
+                                # Get ACR access token and save to file
+                                az acr login --name $ACR_NAME --expose-token --output tsv --query accessToken > acr_token.txt
+                                
+                                # Get AKS credentials and save to workspace
+                                az aks get-credentials --resource-group $RESOURCE_GROUP --name $AKS_CLUSTER --file ./kubeconfig
+                            '''
+                        }
+                    }
+                }
+            }
+        }
+        
+        stage('Build & Push Docker Image') {
+            steps {
+                echo 'Building and pushing Docker image to Azure Container Registry...'
+                script {
+                    // Build Docker image on the Jenkins agent
+                    sh 'docker build -t $DOCKER_IMAGE -f docker/Dockerfile.backend .'
+                    
+                    // Login to ACR using token and push images
+                    sh '''
+                        # Login to ACR using the token
+                        cat acr_token.txt | docker login $ACR_NAME.azurecr.io --username 00000000-0000-0000-0000-000000000000 --password-stdin
+                        
+                        # Push to Azure Container Registry
+                        docker push $DOCKER_IMAGE
+                        
+                        # Also tag and push as latest
+                        docker tag $DOCKER_IMAGE ${ACR_NAME}.azurecr.io/freelance-backend:latest
+                        docker push ${ACR_NAME}.azurecr.io/freelance-backend:latest
+                        
+                        # Logout for security
+                        docker logout $ACR_NAME.azurecr.io
+                    '''
+                }
+            }
+        }
+        
+        stage('Deploy to Azure AKS') {
+            steps {
+                echo 'Deploying to Azure Kubernetes Service...'
+                script {
+                    // Use kubectl with the kubeconfig file created in Azure Login stage
+                    sh '''
+                        export KUBECONFIG=./kubeconfig
+                        
+                        # Update backend deployment with new image
+                        kubectl set image deployment/backend backend=$DOCKER_IMAGE -n freelance
+                        
+                        # Wait for rollout to complete
+                        kubectl rollout status deployment/backend -n freelance --timeout=300s
+                        
+                        # Verify deployment
+                        kubectl get pods -n freelance -l app=backend
+                    '''
+                }
+            }
+        }
+        
+        stage('Health Check') {
+            steps {
+                echo 'Performing health check...'
+                sh '''
+                    export KUBECONFIG=./kubeconfig
+                    
+                    # Wait a bit for the service to be ready
+                    sleep 30
+                    
+                    # Check if backend pods are running
+                    kubectl get pods -n freelance -l app=backend
+                    
+                    # Check service endpoints
+                    kubectl get svc -n freelance
+                '''
+            }
+        }
+    }
+    post {
+        always {
+            echo 'Backend Azure pipeline completed.'
+            archiveArtifacts(
+                artifacts: '**/target/surefire-reports/*.xml',
+                allowEmptyArchive: true
+            )
+            // Clean up sensitive files
+            sh '''
+                rm -f acr_token.txt || true
+                rm -f kubeconfig || true
+            '''
+        }
+        success {
+            echo '✅ Backend deployed successfully to Azure AKS!'
+            echo "Docker image: ${env.DOCKER_IMAGE}"
+            echo "Deployed to: ${env.AKS_CLUSTER} in ${env.RESOURCE_GROUP}"
+        }
+        failure {
+            echo '❌ Backend Azure deployment failed. Check the logs for details.'
+        }
+        cleanup {
+            // Clean up local Docker images to save space
+            script {
+                try {
+                    sh '''
+                        set +e  # Don't exit on error
+                        
+                        echo "🧹 Starting cleanup process..."
+                        
+                        # Clean up Docker images with better error handling
+                        if docker images | grep -q "$DOCKER_IMAGE"; then
+                            echo "Removing Docker image: $DOCKER_IMAGE"
+                            docker rmi "$DOCKER_IMAGE" || echo "Failed to remove $DOCKER_IMAGE"
+                        else
+                            echo "Docker image $DOCKER_IMAGE not found locally, skipping removal"
+                        fi
+                        
+                        if docker images | grep -q "${ACR_NAME}.azurecr.io/freelance-backend:latest"; then
+                            echo "Removing Docker image: ${ACR_NAME}.azurecr.io/freelance-backend:latest"
+                            docker rmi "${ACR_NAME}.azurecr.io/freelance-backend:latest" || echo "Failed to remove latest image"
+                        else
+                            echo "Latest backend image not found locally, skipping removal"
+                        fi
+                        
+                        # Clean up sensitive files
+                        echo "Removing sensitive files..."
+                        rm -f acr_token.txt
+                        rm -f kubeconfig
+                        
+                        echo "✅ Cleanup completed successfully"
+                        
+                        set -e  # Re-enable exit on error
+                    '''
+                } catch (Exception e) {
+                    echo "⚠️ Cleanup encountered issues but continuing: ${e.getMessage()}"
+                }
+            }
+        }
+    }
+} 

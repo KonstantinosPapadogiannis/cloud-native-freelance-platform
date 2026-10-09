@@ -1,0 +1,34 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: freelance-config
+  namespace: freelance
+data:
+  # Database Configuration
+  POSTGRES_DB: "freelancer_db"
+  POSTGRES_USER: "freelancer_user"
+  SPRING_DATASOURCE_URL: "jdbc:postgresql://postgres-service:5432/freelancer_db"
+  SPRING_DATASOURCE_USERNAME: "freelancer_user"
+  SPRING_JPA_HIBERNATE_DDL_AUTO: "update"
+  
+  # MinIO Configuration
+  MINIO_ENDPOINT: "http://minio-service:9000"
+  MINIO_ACCESS_KEY: "minioadmin"
+  MINIO_BUCKET_NAME: "freelancer-cvs"
+  
+  # Mail Configuration - Updated for production
+  SPRING_PROFILES_ACTIVE: "prod"
+  SPRING_MAIL_HOST: "mailhog"  # Change to real SMTP server for production
+  SPRING_MAIL_PORT: "1025"     # Change to 587 or 465 for real SMTP
+  SPRING_MAIL_USERNAME: ""
+  SPRING_MAIL_PASSWORD: ""
+  SPRING_MAIL_PROPERTIES_MAIL_SMTP_AUTH: "false"      # Change to "true" for real SMTP
+  SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_ENABLE: "false"  # Change to "true" for real SMTP
+  SPRING_MAIL_PROPERTIES_MAIL_DEBUG: "false"  # Disable debug in production
+  
+  # Security Configuration for Production
+  SPRING_SECURITY_CSRF_DISABLED: "false"  # Enable CSRF protection in production
+  CORS_ALLOWED_ORIGINS: "https://ergohub.duckdns.org,https://api-ergohub.duckdns.org"  # Your DuckDNS domain
+  # Remove the security exclusion for production
+  # SPRING_AUTOCONFIGURE_EXCLUDE: "org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration"
+
